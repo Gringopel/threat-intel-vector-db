@@ -1,228 +1,59 @@
 from __future__ import annotations
 
-import json
-import re
 from pathlib import Path
-from typing import Any
 
-from src.other_functions import load_json, normalize_text
-from src.routing_rules import ROUTE_KEYWORDS
+from src.preprocessing import preprocess_enisa, preprocess_kev, preprocess_mitre
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-RAW_FILE = BASE_DIR / "data" / "raw" / "kev" / "known_exploited_vulnerabilities.json"
-OUTPUT_DIR = BASE_DIR / "data" / "optimized_chunks" / "kev"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-
-def safe_slug(value: str) -> str:
-    """
-    Convierte un texto en slug seguro para nombres de fichero.
-    
-    Args:
-        value(str): Valor a convertir
-    
-    Returns:
-        str: Valor normalizado para usar como nombre de fichero.
-    """
-    text = value.strip().lower()
-    text = re.sub(r"[^a-z0-9._-]+", "_", text)
-    return text.strip("_")
-
-
-def extract_cwes(item: dict[str, Any]) -> list[str]:
-    """
-    Extrae la lista de CWE desde una entrada KEV.
-
-    Args:
-        item (dict[str, Any]): Entrada individual del catálogo KEV.
-
-    Returns:
-        list[str]: Lista de CWE normalizados en minúsculas.
-    """
-    raw_cwes = item.get("cwes", [])
-
-    if not isinstance(raw_cwes, list):
-        return []
-
-    return [
-        str(cwe).strip().lower()
-        for cwe in raw_cwes
-        if str(cwe).strip()
-    ]
-
-
-def build_chunk_text(item: dict[str, Any]) -> str:
-    """
-    Construye el texto semántico del chunk a partir de una entrada KEV.
-
-    Args:
-        item (dict[str, Any]): Entrada individual del catálogo KEV.
-
-    Returns:
-        str: Texto consolidado del chunk.
-    """
-    cve = item.get("cveID", "unknown-cve")
-    vendor = item.get("vendorProject", "")
-    product = item.get("product", "")
-    vuln_name = item.get("vulnerabilityName", "")
-    short_desc = item.get("shortDescription", "")
-    required_action = item.get("requiredAction", "")
-    due_date = item.get("dueDate", "")
-    ransomware = item.get("knownRansomwareCampaignUse", "")
-    notes = item.get("notes", "")
-    cwes = extract_cwes(item)
-
-    parts = [
-        f"CVE: {cve}",
-        f"Vendor: {vendor}",
-        f"Product: {product}",
-        f"Vulnerability name: {vuln_name}",
-        f"Description: {short_desc}",
-        f"Required action: {required_action}",
-        f"Due date: {due_date}",
-        f"Known ransomware campaign use: {ransomware}",
-        f"CWES: {', '.join(cwes)}" if cwes else "",
-        f"Notes: {notes}",
-        "Source: CISA Known Exploited Vulnerabilities Catalog",
-    ]
-    return "\n".join(part for part in parts if part and not part.endswith(": "))
-
-
-def build_search_blob(item: dict[str, Any], chunk_text: str) -> str:
-    """
-    Construye el texto sobre el que aplicar routing.
-    
-    Args:
-        item (dict[str, Any]): Entrada KEV original
-        chunk_text (str): Texto consolidado del chunk
-    
-    Returns:
-        str:  Texto normalizado para clasificación heurística
-    """
-    cwes = extract_cwes(item)
-    
-    parts = [
-        item.get("cveID", ""),
-        item.get("vendorProject", ""),
-        item.get("product", ""),
-        item.get("vulnerabilityName", ""),
-        item.get("shortDescription", ""),
-        item.get("requiredAction", ""),
-        item.get("notes", ""),
-        " ".join(cwes),
-        chunk_text,
-    ]
-    return normalize_text(" ".join(str(part) for part in parts if part))
-
-
-def keyword_matches(blob: str, keyword: str) -> bool:
-    """
-    Comprueba si una keyword aparece en el texto evitando falsos positivos
-
-    Args:
-        blob (str): Texto normalizado donde buscar
-        keyword (str): Keyword a comprobar
-
-    Returns:
-        bool: True si hay coincidencia válida
-    """
-    normalized_keyword = normalize_text(keyword)
-
-    if not normalized_keyword:
-        return False
-
-    if " " in normalized_keyword:
-        return normalized_keyword in blob
-
-    pattern = r"\b" + re.escape(normalized_keyword) + r"\b"
-    return re.search(pattern, blob) is not None
-
-
-def classify_routes(item: dict[str, Any], chunk_text: str) -> list[str]:
-    """
-    Devuelve las rutas temáticas a las que pertenece una entrada KEV (chunk)
-
-    Un chunk puede pertenecer a varias rutas.
-    Si no encaja en ninguna, se clasifica como 'general'
-
-    Agrs:
-        item (dict[str, Any]): Entrada KEV original
-        chunk_text (str): Texto consolidado del chunk
-    
-    Returns:
-        list[str]: Lista de rutas detectadas 
-    """
-    blob = build_search_blob(item, chunk_text)
-    matched_routes: list[str] = []
-
-    for route_name, keywords in ROUTE_KEYWORDS.items():
-        for keyword in keywords:
-            if keyword_matches(blob, keyword):
-                matched_routes.append(route_name)
-                break
-
-    if not matched_routes:
-        matched_routes.append("general")
-
-    return sorted(set(matched_routes))
-
-
-def build_chunk_payload(item: dict[str, Any]) -> dict[str, Any]:
-    """
-    Construye el JSON final del chunk optimizado
-    
-    Args:
-        item (dict[str, Any]): Entrada KEV original
-
-    Returns:
-        dict[str, Any]: Chunk optimizado para clasificación e indexación
-    """
-    cve = item.get("cveID", "unknown-cve")
-    cwes = extract_cwes(item)
-    chunk_text = build_chunk_text(item)
-    routes = classify_routes(item, chunk_text)
-
-    return {
-        "id": cve,
-        "source": "kev",
-        "source_type": "json_feed",
-        "title": item.get("vulnerabilityName") or cve,
-        "text": chunk_text,
-        "metadata": {
-            "cve_id": cve,
-            "vendor": item.get("vendorProject"),
-            "product": item.get("product"),
-            "date_added": item.get("dateAdded"),
-            "due_date": item.get("dueDate"),
-            "ransomware_use": item.get("knownRansomwareCampaignUse"),
-            "notes": item.get("notes"),
-            "cwes": cwes,
-            "routes": routes,
-        },
-    }
+RAW_DIR = BASE_DIR / "data" / "raw"
+OUTPUT_BASE_DIR = BASE_DIR / "data" / "optimized_chunks"
 
 
 def main() -> None:
-    """Transforma el catálogo KEV raw en chunks optimizados uno a uno."""
-    if not RAW_FILE.exists():
-        raise FileNotFoundError(f"No existe el fichero raw de KEV: {RAW_FILE}")
+    total_generated = 0
 
-    payload = load_json(RAW_FILE)
-    vulnerabilities = payload.get("vulnerabilities", [])
+    # KEV
+    kev_raw_file = RAW_DIR / "kev" / "known_exploited_vulnerabilities.json"
+    kev_output_dir = OUTPUT_BASE_DIR / "kev"
 
-    total = 0
-    for item in vulnerabilities:
-        chunk = build_chunk_payload(item)
-        filename = f"{safe_slug(chunk['id'])}.json"
-        output_path = OUTPUT_DIR / filename
-        output_path.write_text(
-            json.dumps(chunk, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        total += 1
+    if kev_raw_file.exists():
+        generated = preprocess_kev(kev_raw_file, kev_output_dir)
+        total_generated += generated
+        print(f"[OK] KEV procesado. Chunks generados: {generated}")
+    else:
+        print(f"[INFO] KEV no disponible en: {kev_raw_file}")
 
-    print(f"[OK] Chunks KEV generados: {total}")
-    print(f"[OK] Directorio: {OUTPUT_DIR}")
+    # MITRE
+    mitre_raw_file = RAW_DIR / "mitre" / "enterprise-attack.json"
+    mitre_output_dir = OUTPUT_BASE_DIR / "mitre"
+
+    if mitre_raw_file.exists():
+        try:
+            generated = preprocess_mitre(mitre_raw_file, mitre_output_dir)
+            total_generated += generated
+            print(f"[OK] MITRE procesado. Chunks generados: {generated}")
+        except NotImplementedError as exc:
+            print(f"[INFO] {exc}")
+    else:
+        print(f"[INFO] MITRE no disponible en: {mitre_raw_file}")
+
+    # ENISA
+    enisa_raw_file = RAW_DIR / "enisa" / "enisa_threat_landscape.pdf"
+    enisa_output_dir = OUTPUT_BASE_DIR / "enisa"
+
+    if enisa_raw_file.exists():
+        try:
+            generated = preprocess_enisa(enisa_raw_file, enisa_output_dir)
+            total_generated += generated
+            print(f"[OK] ENISA procesado. Chunks generados: {generated}")
+        except NotImplementedError as exc:
+            print(f"[INFO] {exc}")
+    else:
+        print(f"[INFO] ENISA no disponible en: {enisa_raw_file}")
+
+    print(f"[OK] Total de chunks generados: {total_generated}")
 
 
 if __name__ == "__main__":
