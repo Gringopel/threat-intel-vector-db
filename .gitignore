@@ -1,4 +1,21 @@
-.venv
-.env
-docs/
+# datos generados
+data/raw/kev/
+data/optimized_chunks/kev/
+data/routing/
+data/state/
+
+# almacenamiento vectorial
 qdrant_data/
+
+# variables sensibles
+.env
+
+# python
+__pycache__/
+*.pyc
+
+# entorno virtual
+.venv/
+
+# documuentos
+docs/
