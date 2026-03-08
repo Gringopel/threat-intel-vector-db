@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.other_functions import load_json, normalize_text
-from routing.routing_rules import ROUTE_KEYWORDS
+from src.routing.routing_rules import ROUTE_KEYWORDS
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RAW_FILE = BASE_DIR / "data" / "raw" / "kev" / "known_exploited_vulnerabilities.json"
