@@ -5,28 +5,14 @@ import re
 from pathlib import Path
 from typing import Any
 
-from src.other_functions import load_json, normalize_text
+from src.other_functions import load_json, normalize_text, safe_slug
 from src.routing.routing_rules import ROUTE_KEYWORDS
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RAW_FILE = BASE_DIR / "data" / "raw" / "kev" / "known_exploited_vulnerabilities.json"
 OUTPUT_DIR = BASE_DIR / "data" / "optimized_chunks" / "kev"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def safe_slug(value: str) -> str:
-    """
-    Convierte un texto en slug seguro para nombres de fichero.
-    
-    Args:
-        value(str): Valor a convertir
-    
-    Returns:
-        str: Valor normalizado para usar como nombre de fichero.
-    """
-    text = value.strip().lower()
-    text = re.sub(r"[^a-z0-9._-]+", "_", text)
-    return text.strip("_")
 
 
 def extract_cwes(item: dict[str, Any]) -> list[str]:
