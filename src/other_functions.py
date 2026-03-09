@@ -4,6 +4,21 @@ from pathlib import Path
 from typing import Any
 
 
+def safe_slug(value: str) -> str:
+    """
+    Convierte un texto en slug seguro para nombres de fichero.
+
+    Args:
+        value (str): Valor a convertir.
+
+    Returns:
+        str: Valor normalizado para nombre de fichero.
+    """
+    text = value.strip().lower()
+    text = re.sub(r"[^a-z0-9._-]+", "_", text)
+    return text.strip("_")
+
+
 def load_json(path: Path) -> dict:
     """Carga un JSON desde disco."""
     return json.loads(path.read_text(encoding="utf-8"))

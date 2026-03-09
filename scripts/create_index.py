@@ -147,9 +147,12 @@ def build_content_hash(chunk: dict[str, Any]) -> str:
         "source": chunk.get("source"),
         "source_type": chunk.get("source_type"),
         "title": chunk.get("title"),
-        "text": chunk.get("text"),        
+        "text": chunk.get("text"),
+
+        # COMUNES        
         "routes": metadata.get("routes", []),
-        "cwes": metadata.get("cwes", []),
+
+        # KEV
         "cve_id": metadata.get("cve_id"),
         "vendor": metadata.get("vendor"),
         "product": metadata.get("product"),
@@ -157,14 +160,28 @@ def build_content_hash(chunk: dict[str, Any]) -> str:
         "due_date": metadata.get("due_date"),
         "ransomware_use": metadata.get("ransomware_use"),
         "notes": metadata.get("notes"),
+        "cwes": metadata.get("cwes", []),
+
+        # MITRE
         "attack_id": metadata.get("attack_id"),
+        "name": metadata.get("name"),
+        "description": metadata.get("description"),
+        "external_url": metadata.get("external_url"),
         "tactic": metadata.get("tactic"),
+        "tactics": metadata.get("tactics", []),
+        "tactic_shortnames": metadata.get("tactic_shortnames", []),
         "platforms": metadata.get("platforms", []),
         "data_sources": metadata.get("data_sources", []),
-        "report_year": metadata.get("report_year"),
-        "section": metadata.get("section"),
-        "chapter": metadata.get("chapter"),
-        "data_sources": metadata.get("data_sources", []),
+        "is_subtechnique": metadata.get("is_subtechnique"),
+        "parent_attack_id": metadata.get("parent_attack_id"),
+        "parent_name": metadata.get("parent_name"),
+        "permissions_required": metadata.get("permissions_required", []),
+        "defense_bypassed": metadata.get("defense_bypassed", []),
+        "effective_permissions": metadata.get("effective_permissions", []),
+        "detection": metadata.get("detection"),
+        "mitigations": metadata.get("mitigations", []),
+        "software": metadata.get("software", []),
+        "groups": metadata.get("groups", []),
     }
 
     raw = json.dumps(relevant_payload, ensure_ascii=False, sort_keys=True)
@@ -184,6 +201,34 @@ def build_embedding_input(chunk: dict[str, Any]) -> str:
     metadata = chunk.get("metadata", {})
     routes = metadata.get("routes", [])
     cwes = metadata.get("cwes", [])
+    tactics = metadata.get("tactics", [])
+    tactic_shortnames = metadata.get("tactic_shortnames", [])
+    platforms = metadata.get("platforms", [])
+    data_sources = metadata.get("data_sources", [])
+    permissions_required = metadata.get("permissions_required", [])
+    defense_bypassed = metadata.get("defense_bypassed", [])
+    effective_permissions = metadata.get("effective_permissions", [])
+
+    mitigations = metadata.get("mitigations", [])
+    software = metadata.get("software", [])
+    groups = metadata.get("groups", [])
+
+    mitigation_names = [
+        item.get("name", "")
+        for item in mitigations
+        if isinstance(item, dict) and item.get("name")
+    ]
+    software_names = [
+        item.get("name", "")
+        for item in software
+        if isinstance(item, dict) and item.get("name")
+    ]
+    group_names = [
+        item.get("name", "")
+        for item in groups
+        if isinstance(item, dict) and item.get("name")
+    ]
+
 
     parts = [
         f"Title: {chunk.get('title', '')}",
@@ -192,9 +237,27 @@ def build_embedding_input(chunk: dict[str, Any]) -> str:
         f"ID: {chunk.get('id', '')}",
         f"CVE: {metadata.get('cve_id', '')}",
         f"Vendor: {metadata.get('vendor', '')}",
-        f"Product: {metadata.get('product', '')}"
+        f"Product: {metadata.get('product', '')}",
+        f"CWEs: {', '.join(cwes) if cwes else ''}",
+        f"ATT&CK ID: {metadata.get('attack_id', '')}",
+        f"Tactic: {metadata.get('tactic', '')}",
+        f"Tactics: {', '.join(tactics) if tactics else ''}",
+        f"Tactic shortnames: {', '.join(tactic_shortnames) if tactic_shortnames else ''}",
+        f"Platforms: {', '.join(platforms) if platforms else ''}",
+        f"Data sources: {', '.join(data_sources) if data_sources else ''}",
+        f"Parent ATT&CK ID: {metadata.get('parent_attack_id', '')}",
+        f"Parent technique: {metadata.get('parent_name', '')}",
+        f"Permissions required: {', '.join(permissions_required) if permissions_required else ''}",
+        f"Defense bypassed: {', '.join(defense_bypassed) if defense_bypassed else ''}",
+        f"Effective permissions: {', '.join(effective_permissions) if effective_permissions else ''}",
+        f"Mitigations: {', '.join(mitigation_names) if mitigation_names else ''}",
+        f"Software: {', '.join(software_names) if software_names else ''}",
+        f"Groups: {', '.join(group_names) if group_names else ''}",
+        f"Report year: {metadata.get('report_year', '')}",
+        f"Section: {metadata.get('section', '')}",
+        f"Chapter: {metadata.get('chapter', '')}",
+        f"Document type: {metadata.get('document_type', '')}",
         f"Routes: {', '.join(routes) if routes else ''}",
-        F"CWEs: {', '.join(cwes) if cwes else ''}",
         f"Text: {chunk.get('text', '')}",
     ]
     return "\n".join(part for part in parts if part.strip())
@@ -388,6 +451,10 @@ def build_point(chunk: dict[str, Any], embedding: list[float]) -> PointStruct:
         "text": chunk.get("text"),
         "source": source,
         "source_type": chunk.get("source_type"),
+        "content_hash": content_hash,
+        "routes": metadata.get("routes", []),
+
+        # KEV
         "cve_id": metadata.get("cve_id"),
         "vendor": metadata.get("vendor"),
         "product": metadata.get("product"),
@@ -396,16 +463,28 @@ def build_point(chunk: dict[str, Any], embedding: list[float]) -> PointStruct:
         "ransomware_use": metadata.get("ransomware_use"),
         "notes": metadata.get("notes"),
         "cwes": metadata.get("cwes"),
-        "routes": metadata.get("routes", []),
+        
+        # MITRE
         "attack_id": metadata.get("attack_id"),
+        "name": metadata.get("name"),
+        "description": metadata.get("description"),
+        "external_url": metadata.get("external_url"),
         "tactic": metadata.get("tactic"),
+        "tactics": metadata.get("tactics", []),
+        "tactic_shortnames": metadata.get("tactic_shortnames", []),
         "platforms": metadata.get("platforms", []),
         "data_sources": metadata.get("data_sources", []),
-        "report_year": metadata.get("report_year"),
-        "section": metadata.get("section"),
-        "chapter": metadata.get("chapter"),
-        "document_type": metadata.get("document_type"),
-        "content_hash": content_hash,
+        "is_subtechnique": metadata.get("is_subtechnique"),
+        "parent_attack_id": metadata.get("parent_attack_id"),
+        "parent_name": metadata.get("parent_name"),
+        "permissions_required": metadata.get("permissions_required", []),
+        "defense_bypassed": metadata.get("defense_bypassed", []),
+        "effective_permissions": metadata.get("effective_permissions", []),
+        "detection": metadata.get("detection"),
+        "mitigations": metadata.get("mitigations", []),
+        "software": metadata.get("software", []),
+        "groups": metadata.get("groups", []),
+        
     }
 
     point_id = build_qdrant_point_id(source=source, logical_id=logical_id)
