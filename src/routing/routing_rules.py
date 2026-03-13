@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List
-
-
-ROUTE_KEYWORDS: Dict[str, List[str]] = {
+ROUTE_KEYWORDS: dict[str, list[str]] = {
     "network_edge_devices": [
         "router",
         "switch",

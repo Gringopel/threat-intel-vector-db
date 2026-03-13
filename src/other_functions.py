@@ -46,3 +46,18 @@ def normalize_text(value: str | None) -> str:
     text = value.lower().strip()
     text = re.sub(r"\s+", " ", text)
     return text
+
+def clear_output_directory(output_dir: Path) -> None:
+    """
+    Elimina ficheros JSON previos del directorio de salida.
+
+    Args:
+        output_dir (Path): Directorio de salida.
+
+    Returns:
+        None
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for path in output_dir.glob("*.json"):
+        path.unlink()

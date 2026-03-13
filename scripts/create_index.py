@@ -182,25 +182,54 @@ def build_content_hash(chunk: dict[str, Any]) -> str:
         "mitigations": metadata.get("mitigations", []),
         "software": metadata.get("software", []),
         "groups": metadata.get("groups", []),
+
+        # ENISA
+        "section_id": metadata.get("section_id"),
+        "parent_section_id": metadata.get("parent_section_id"),
+        "root_section_id": metadata.get("root_section_id"),
+        "root_section": metadata.get("root_section"),
+        "parent_title": metadata.get("parent_title"),
+        "hierarchical_title": metadata.get("hierarchical_title"),
+        "page_start": metadata.get("page_start"),
+        "page_end": metadata.get("page_end"),
+        "logical_page": metadata.get("logical_page"),
+        "level": metadata.get("level"),
+        "is_leaf": metadata.get("is_leaf"),
+        "document_type": metadata.get("document_type"),
+        "report_year": metadata.get("report_year"),
     }
 
     raw = json.dumps(relevant_payload, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def build_embedding_input(chunk: dict[str, Any]) -> str:
-    """
-    Construye el texto que se enviará al modelo de embeddings.
-
-    Args:
-        chunk (dict[str, Any]): Chunk optimizado.
-
-    Returns:
-        str: Texto enriquecido para embedding.
-    """
+def build_embedding_input_enisa(chunk: dict[str, Any]) -> str:
     metadata = chunk.get("metadata", {})
     routes = metadata.get("routes", [])
-    cwes = metadata.get("cwes", [])
+
+    parts = [
+        "Source: ENISA",
+        f"Title: {chunk.get('title', '')}",
+        f"Section ID: {metadata.get('section_id', '')}",
+        f"Hierarchy: {metadata.get('hierarchical_title', '')}",
+        f"Root section: {metadata.get('root_section', '')}",
+        f"Parent title: {metadata.get('parent_title', '')}",
+        f"Level: {metadata.get('level', '')}",
+        f"Is leaf: {metadata.get('is_leaf', '')}",
+        f"Document type: {metadata.get('document_type', '')}",
+        f"Report year: {metadata.get('report_year', '')}",
+        f"Routes: {', '.join(routes) if routes else ''}",
+        f"Text: {chunk.get('text', '')}",
+    ]
+    return "\n".join(
+        part for part in parts
+        if part.split(": ", 1)[-1].strip()
+    )
+
+
+def build_embedding_input_mitre(chunk: dict[str, Any]) -> str:
+    metadata = chunk.get("metadata", {})
+    routes = metadata.get("routes", [])
     tactics = metadata.get("tactics", [])
     tactic_shortnames = metadata.get("tactic_shortnames", [])
     platforms = metadata.get("platforms", [])
@@ -229,16 +258,11 @@ def build_embedding_input(chunk: dict[str, Any]) -> str:
         if isinstance(item, dict) and item.get("name")
     ]
 
-
     parts = [
+        "Source: MITRE ATT&CK",
         f"Title: {chunk.get('title', '')}",
-        f"Source: {chunk.get('source', '')}",
         f"Source type: {chunk.get('source_type', '')}",
         f"ID: {chunk.get('id', '')}",
-        f"CVE: {metadata.get('cve_id', '')}",
-        f"Vendor: {metadata.get('vendor', '')}",
-        f"Product: {metadata.get('product', '')}",
-        f"CWEs: {', '.join(cwes) if cwes else ''}",
         f"ATT&CK ID: {metadata.get('attack_id', '')}",
         f"Tactic: {metadata.get('tactic', '')}",
         f"Tactics: {', '.join(tactics) if tactics else ''}",
@@ -253,14 +277,73 @@ def build_embedding_input(chunk: dict[str, Any]) -> str:
         f"Mitigations: {', '.join(mitigation_names) if mitigation_names else ''}",
         f"Software: {', '.join(software_names) if software_names else ''}",
         f"Groups: {', '.join(group_names) if group_names else ''}",
-        f"Report year: {metadata.get('report_year', '')}",
-        f"Section: {metadata.get('section', '')}",
-        f"Chapter: {metadata.get('chapter', '')}",
-        f"Document type: {metadata.get('document_type', '')}",
         f"Routes: {', '.join(routes) if routes else ''}",
         f"Text: {chunk.get('text', '')}",
     ]
-    return "\n".join(part for part in parts if part.strip())
+    return "\n".join(
+        part for part in parts
+        if part.split(": ", 1)[-1].strip()
+    )
+
+
+def build_embedding_input_kev(chunk: dict[str, Any]) -> str:
+    metadata = chunk.get("metadata", {})
+    routes = metadata.get("routes", [])
+    cwes = metadata.get("cwes", [])
+
+    parts = [
+        "Source: CISA KEV",
+        f"Title: {chunk.get('title', '')}",
+        f"Source type: {chunk.get('source_type', '')}",
+        f"ID: {chunk.get('id', '')}",
+        f"CVE: {metadata.get('cve_id', '')}",
+        f"Vendor: {metadata.get('vendor', '')}",
+        f"Product: {metadata.get('product', '')}",
+        f"CWEs: {', '.join(cwes) if cwes else ''}",
+        f"Date added: {metadata.get('date_added', '')}",
+        f"Due date: {metadata.get('due_date', '')}",
+        f"Ransomware use: {metadata.get('ransomware_use', '')}",
+        f"Notes: {metadata.get('notes', '')}",
+        f"Routes: {', '.join(routes) if routes else ''}",
+        f"Text: {chunk.get('text', '')}",
+    ]
+    return "\n".join(
+        part for part in parts
+        if part.split(": ", 1)[-1].strip()
+    )
+
+
+def build_embedding_input(chunk: dict[str, Any]) -> str:
+    """
+    Construye el texto que se enviará al modelo de embeddings.
+
+    Args:
+        chunk (dict[str, Any]): Chunk optimizado.
+
+    Returns:
+        str: Texto enriquecido para embedding.
+    """
+
+    source = str(chunk.get("source", "")).lower()
+
+    if source == "enisa":
+        return build_embedding_input_enisa(chunk)
+    if source == "mitre":
+        return build_embedding_input_mitre(chunk)
+    if source == "kev":
+        return build_embedding_input_kev(chunk)
+    
+
+    metadata = chunk.get("metadata", {})
+    
+    parts = [
+        f"Title: {chunk.get('title', '')}",
+        f"Source: {chunk.get('source', '')}",
+        f"Source type: {chunk.get('source_type', '')}",
+        f"Routes: {', '.join(metadata.get('routes', []))}",
+        f"Text: {chunk.get('text', '')}",
+    ]
+    return "\n".join(part for part in parts if part.split(": ", 1)[-1].strip())
 
 
 def generate_embedding(
@@ -484,7 +567,21 @@ def build_point(chunk: dict[str, Any], embedding: list[float]) -> PointStruct:
         "mitigations": metadata.get("mitigations", []),
         "software": metadata.get("software", []),
         "groups": metadata.get("groups", []),
-        
+
+        # ENISA
+        "section_id": metadata.get("section_id"),
+        "parent_section_id": metadata.get("parent_section_id"),
+        "root_section_id": metadata.get("root_section_id"),
+        "root_section": metadata.get("root_section"),
+        "parent_title": metadata.get("parent_title"),
+        "hierarchical_title": metadata.get("hierarchical_title"),
+        "page_start": metadata.get("page_start"),
+        "page_end": metadata.get("page_end"),
+        "logical_page": metadata.get("logical_page"),
+        "level": metadata.get("level"),
+        "is_leaf": metadata.get("is_leaf"),
+        "document_type": metadata.get("document_type"),
+        "report_year": metadata.get("report_year"),        
     }
 
     point_id = build_qdrant_point_id(source=source, logical_id=logical_id)

@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from src.other_functions import safe_slug, load_json, normalize_text
+from src.other_functions import safe_slug, load_json, normalize_text, clear_output_directory
 from src.routing.routing_rules import ROUTE_KEYWORDS
 
 
@@ -729,21 +729,6 @@ def build_chunk_payload(
             "routes": routes,
         },
     }
-
-
-def clear_output_directory(output_dir: Path) -> None:
-    """
-    Elimina ficheros JSON previos del directorio de salida
-
-    Args:
-        output_dir (Path): Directorio de salida
-
-    Returns:
-        None
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for path in output_dir.glob("*.json"):
-        path.unlink()
 
 
 def preprocess_mitre(raw_file: Path, output_dir: Path) -> int:

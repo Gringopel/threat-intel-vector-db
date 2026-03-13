@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from src.other_functions import load_json, normalize_text, safe_slug
+from src.other_functions import load_json, normalize_text, safe_slug, clear_output_directory
 from src.routing.routing_rules import ROUTE_KEYWORDS
 
 
@@ -202,7 +202,7 @@ def preprocess_kev(raw_file: Path, output_dir: Path) -> int:
     if not raw_file.exists():
         raise FileNotFoundError(f"No existe el fichero raw de KEV: {raw_file}")
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    clear_output_directory(output_dir)
 
     payload = load_json(raw_file)
     vulnerabilities = payload.get("vulnerabilities", [])
