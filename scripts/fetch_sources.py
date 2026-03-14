@@ -69,17 +69,46 @@ def download_bytes(url: str, timeout: int = 60) -> bytes:
         return response.read()
 
 def load_state() -> dict[str, Any]:
+    """
+    Carga el estado global del pipeline desde disco
+    
+    Returns:
+        dict[str, Any]: Diccionario que representa el estado actual del pipeline.
+    """
     if not STATE_FILE.exists():
         return {"sources": {}}
     return load_json(STATE_FILE)
 
 
 def save_state(state: dict[str, Any]) -> None:
+    """
+    Guarda el estado global del pipeline
+
+    Args:
+        state (dict[str, Any]): Diccionario que contiene el estado global del pipeline
+    """
     save_json(STATE_FILE, state)
 
 
-def update_source_state(state: dict[str, Any], source: str, new_hash: str, output_file: Path, records: int | None = None):
+def update_source_state(
+    state: dict[str, Any], 
+    source: str, 
+    new_hash: str, 
+    output_file: Path, 
+    records: int | None = None):
+    """
+    Actualiza el estado de una fuente de datos dentro del estado global del pipeline
+    
+    Args:
+        state (dict[str, Any]): Diccionario que contiene el estado global del pipeline
+        source (str): Nombre de la fuente de datos
+        new_hash (str): Hash contenido que se ha descargado
+        output_file (Path): Ruta del fichero raw guardado en disco
+        records (int | None, optional): Número de registros presentes en la fuente
 
+    Returns:
+        bool: Indica si el contenido de la fuente ha cambiado respecto al estado previamente almacenado.
+    """
     sources = state.setdefault("sources", {})
     source_state = sources.setdefault(source, {})
 
@@ -100,11 +129,13 @@ def update_source_state(state: dict[str, Any], source: str, new_hash: str, outpu
     return changed
 
 
-
 def fetch_kev(state: dict[str, Any]) -> dict[str, Any]:
     """
-    Descarga el feed KEV y devuelve su contenido parseado como dict
+    Descarga el feed CISA/KEV y la guarda en disco
     
+    Args:
+        state (dict[str, Any]): Diccionario que contiene el estado global del pipeline
+
     Returns:
         dict[str, Any]: Metadatos de la descarga
     """
@@ -138,7 +169,10 @@ def fetch_kev(state: dict[str, Any]) -> dict[str, Any]:
 
 def fetch_mitre(state: dict[str, Any]) -> dict[str, Any]:
     """
-    Descarga la fuente MITRE ATT&CK Enterprise y la guarda en disco
+    Descarga la fuente MITRE ATT&CK y la guarda en disco
+
+    Args:
+        state (dict[str, Any]): Diccionario que contiene el estado global del pipeline
 
     Returns:
         dict[str, Any]: Metadatos de la descarga
@@ -181,7 +215,8 @@ def fetch_enisa(state: dict[str, Any]) -> dict[str, Any]:
     """
     Descarga el PDF de ENISA y lo guarda en disco
 
-    La URL se toma de ENISA_PDF_URL en .env
+    Args:
+        state (dict[str, Any]): Diccionario que contiene el estado global del pipeline
 
     Returns:
         dict[str, Any]: Metadatos de la descarga

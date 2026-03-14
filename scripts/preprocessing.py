@@ -39,8 +39,8 @@ OUTPUT_DIRS: dict[str, Path] = {
 
 
 def utc_now_iso() -> str:
-    """Devuelve la fecha actual en formato ISO-8601 UTC"""
-    return datetime.now(timezone.utc).isoformat()
+    """Devuelve la fecha actual"""
+    return datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M:%S")
 
 
 def load_state(path: Path) -> dict[str, Any]:
