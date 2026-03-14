@@ -8,13 +8,15 @@ from typing import Any
 from pathlib import Path
 from dotenv import load_dotenv
 
-from src.other_functions import save_json
+from src.other_functions import save_json, load_json
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RAW_DIR = BASE_DIR / "data" / "raw"
 STATE_DIR = BASE_DIR / "data" / "state"
+
+STATE_FILE = STATE_DIR / "sources_state.json"
 
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -66,23 +68,40 @@ def download_bytes(url: str, timeout: int = 60) -> bytes:
     with urlopen(request, timeout=timeout) as response:
         return response.read()
 
-
-def save_binary_file(path: Path, data: bytes) -> None:
-    """
-    Guarda un fichero binario en disco.
-
-    Args:
-        path (Path): Ruta de salida.
-        data (bytes): Contenido a guardar.
-
-    Returns:
-        None
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(data)
+def load_state() -> dict[str, Any]:
+    if not STATE_FILE.exists():
+        return {"sources": {}}
+    return load_json(STATE_FILE)
 
 
-def fetch_kev() -> dict[str, Any]:
+def save_state(state: dict[str, Any]) -> None:
+    save_json(STATE_FILE, state)
+
+
+def update_source_state(state: dict[str, Any], source: str, new_hash: str, output_file: Path, records: int | None = None):
+
+    sources = state.setdefault("sources", {})
+    source_state = sources.setdefault(source, {})
+
+    old_hash = source_state.get("sha256")
+    changed = new_hash != old_hash
+
+    source_state.update(
+        {
+            "source": source,
+            "raw_file": str(output_file),
+            "sha256": new_hash,
+            "records": records,
+            "exists": True,
+            "changed": changed,
+        }
+    )
+
+    return changed
+
+
+
+def fetch_kev(state: dict[str, Any]) -> dict[str, Any]:
     """
     Descarga el feed KEV y devuelve su contenido parseado como dict
     
@@ -96,23 +115,28 @@ def fetch_kev() -> dict[str, Any]:
     raw_bytes = download_bytes(KEV_URL)
     payload = json.loads(raw_bytes.decode("utf-8"))
 
+    file_hash = sha256_bytes(raw_bytes)
+
     payload["_meta"] = {
         "source": "kev",
         "source_url": KEV_URL,
-        "sha256": sha256_bytes(raw_bytes),
+        "sha256": file_hash,
     }
 
     save_json(output_file, payload)
 
-    return {
-        "source": "kev",
-        "output_file": str(output_file),
-        "sha256": payload["_meta"]["sha256"],
-        "records": len(payload.get("vulnerabilities", [])),
-    }
+    changed = update_source_state(
+        state,
+        "kev",
+        file_hash,
+        output_file,
+        len(payload.get("vulnerabilities", [])),
+    )
+
+    return changed
 
 
-def fetch_mitre() -> dict[str, Any]:
+def fetch_mitre(state: dict[str, Any]) -> dict[str, Any]:
     """
     Descarga la fuente MITRE ATT&CK Enterprise y la guarda en disco
 
@@ -131,24 +155,29 @@ def fetch_mitre() -> dict[str, Any]:
 
     payload = json.loads(text)
 
+    file_hash = sha256_bytes(raw_bytes)
+
     if isinstance(payload, dict):
         payload["_meta"] = {
             "source": "mitre",
             "source_url": MITRE_URL,
-            "sha256": sha256_bytes(raw_bytes),
+            "sha256": file_hash,
         }
 
     save_json(output_file, payload)
 
-    return {
-        "source": "mitre",
-        "output_file": str(output_file),
-        "sha256": sha256_bytes(raw_bytes),
-        "objects": len(payload.get("objects", [])) if isinstance(payload, dict) else None,
-    }
+    changed = update_source_state(
+        state,
+        "mitre",
+        file_hash,
+        output_file,
+        len(payload.get("objects", [])),
+    )
+
+    return changed
 
 
-def fetch_enisa() -> dict[str, Any]:
+def fetch_enisa(state: dict[str, Any]) -> dict[str, Any]:
     """
     Descarga el PDF de ENISA y lo guarda en disco
 
@@ -157,21 +186,16 @@ def fetch_enisa() -> dict[str, Any]:
     Returns:
         dict[str, Any]: Metadatos de la descarga
     """
-    if not ENISA_URL:
-        raise EnvironmentError(
-            "No se encontró ENISA_PDF_URL en el entorno o en .env."
-        )
-
     output_dir = RAW_DIR / "enisa"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     output_file = output_dir / "enisa_threat_landscape.pdf"
     raw_bytes = download_bytes(ENISA_URL)
     file_hash = sha256_bytes(raw_bytes)
-
-    save_binary_file(output_file, raw_bytes)
+    output_file.write_bytes(raw_bytes)
 
     meta_file = output_dir / "enisa_threat_landscape.meta.json"
+
     save_json(
         meta_file,
         {
@@ -182,47 +206,42 @@ def fetch_enisa() -> dict[str, Any]:
         },
     )
 
-    return {
-        "source": "enisa",
-        "output_file": str(output_file),
-        "sha256": file_hash,
-        "meta_file": str(meta_file),
-    }
+    changed = update_source_state(
+        state,
+        "enisa",
+        file_hash,
+        output_file,
+    )
+
+    return changed
 
 
 def main() -> None:
-    results: list[dict[str, Any]] = []
+    state = load_state()
+
+    print("Descargando fuentes...")
 
     try:
-        kev_result = fetch_kev()
-        results.append(kev_result)
-        print(
-            f"[OK] KEV descargado: {kev_result['output_file']} "
-            f"(records={kev_result['records']})"
-        )
+        changed = fetch_kev(state)
+        print(f"[OK] KEV descargado (changed={changed})")
     except Exception as exc:
         print(f"[ERROR] Error al descargar KEV: {exc}")
 
     try:
-        mitre_result = fetch_mitre()
-        results.append(mitre_result)
-        print(
-            f"[OK] MITRE descargado: {mitre_result['output_file']} "
-            f"(objects={mitre_result['objects']})"
-        )
+        changed = fetch_mitre(state)
+        print(f"[OK] MITRE descargado (changed={changed})")
     except Exception as exc:
         print(f"[ERROR] Error al descargar MITRE: {exc}")
 
     try:
-        enisa_result = fetch_enisa()
-        results.append(enisa_result)
-        print(f"[OK] ENISA descargado: {enisa_result['output_file']}")
+        changed = fetch_enisa(state)
+        print(f"[OK] ENISA descargado (changed={changed})")
     except Exception as exc:
         print(f"[INFO] ENISA no descargado: {exc}")
 
-    summary_file = STATE_DIR / "fetch_sources_summary.json"
-    save_json(summary_file, {"results": results})
-    print(f"[OK] Resumen de descarga guardado en: {summary_file}")
+    save_state(state)
+
+    print(f"[OK] Estado actualizado en {STATE_FILE}")
 
 
 if __name__ == "__main__":
