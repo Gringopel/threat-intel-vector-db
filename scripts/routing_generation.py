@@ -21,6 +21,8 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 OUTPUT_FILE = OUTPUT_DIR / "kev_routing_index.json"
 
+STATE_FILE = BASE_DIR / "data" / "state" / "sources_state.json"
+
 SOURCE_DIRS: dict[str, Path] = {
     "kev": CHUNKS_ROOT_DIR / "kev",
     "mitre": CHUNKS_ROOT_DIR / "mitre",
@@ -691,14 +693,27 @@ async def build_global_payload(source_payloads: list[dict[str, Any]]) -> dict[st
 
 
 async def main() -> None:
-    """Genera indices por fuente y un índice gobal."""
+    """Genera indices por fuente de forma incremental"""
+    state = load_json(STATE_FILE)
+    sources_state = state.get("sources", {})
 
     source_payloads: list[dict[str, Any]] = []
 
     for source, chunks_dir in SOURCE_DIRS.items():
+        source_state = sources_state.get(source, {})
+        changed = source_state.get("changed", True)
+        output_file = OUTPUT_DIR / f"{source}_routing_index.json"
+
+        should_generate = changed or not output_file.exists()
+        if not should_generate:
+            print(f"[INFO] {source.upper()} sin cambios. Se reutiliza routing existente.")
+            payload = load_json(output_file)
+            source_payloads.append(payload)
+            continue
+
         print(f"\n[INFO] Generando routing para fuente: {source}")
         payload = await build_source_payload(source=source, chunks_dir=chunks_dir)
-        output_file = OUTPUT_DIR / f"{source}_routing_index.json"
+        
         save_json(output_file, payload)
         source_payloads.append(payload)
 
