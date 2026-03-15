@@ -9,12 +9,6 @@ from src.other_functions import load_json, normalize_text, safe_slug, clear_outp
 from src.routing.routing_rules import ROUTE_KEYWORDS
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-RAW_FILE = BASE_DIR / "data" / "raw" / "kev" / "known_exploited_vulnerabilities.json"
-OUTPUT_DIR = BASE_DIR / "data" / "optimized_chunks" / "kev"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-
 def extract_cwes(item: dict[str, Any]) -> list[str]:
     """
     Extrae la lista de CWE desde una entrada KEV.

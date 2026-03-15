@@ -9,10 +9,6 @@ from pypdf import PdfReader
 from src.other_functions import clear_output_directory, normalize_text, safe_slug, save_json
 from src.routing.routing_rules import ROUTE_KEYWORDS
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-RAW_FILE = BASE_DIR / "data" / "raw" / "kev" / "enisa_threat_landscape.pdf"
-OUTPUT_DIR = BASE_DIR / "data" / "optimized_chunks" / "enisa"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # usamos al tabla de contenidos (TOC) como referecia para los chunks
 TOC_TEXT = """TABLE OF CONTENTS
