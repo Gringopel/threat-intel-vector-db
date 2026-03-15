@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Any
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_fixed
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 from src.other_functions import load_json, save_json
+from src.services.llms import get_llm
 
 load_dotenv()
 
@@ -29,11 +29,7 @@ SOURCE_DIRS: dict[str, Path] = {
     "enisa": CHUNKS_ROOT_DIR / "enisa",
 }
 
-llm_langchain = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash-lite",
-    temperature=0,
-    max_retries=3
-)
+llm_langchain = get_llm()
 
 MAX_REPRESENTATIVE_CHUNKS = 8
 MAX_TEXT_PER_CHUNK = 1200
