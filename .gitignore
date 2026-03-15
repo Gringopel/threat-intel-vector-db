@@ -19,3 +19,6 @@ __pycache__/
 
 # documuentos
 docs/
+
+# VS Code
+.vscode/
